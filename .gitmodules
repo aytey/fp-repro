@@ -1,0 +1,19 @@
+[submodule "src/corpus"]
+	path = src/corpus
+	url = https://github.com/aytey/fp-benchmarks
+[submodule "src/klee"]
+	path = src/klee
+	url = https://github.com/aytey/klee
+	branch = aytey_20260824_fp_port
+[submodule "src/fp_bench"]
+	path = src/fp_bench
+	url = https://github.com/aytey/klee_fp_bench
+	branch = master
+[submodule "src/bench"]
+	path = src/bench
+	url = https://github.com/aytey/stp-bench
+	branch = master
+[submodule "src/stp"]
+	path = src/stp
+	url = https://github.com/stp/stp
+	branch = master
