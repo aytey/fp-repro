@@ -29,9 +29,18 @@ container runtime. The recipes inside it are the ones that worked natively, but
 expect to debug the first build. `docker/Dockerfile` says so at the top.
 
 **Natively** — you need LLVM and clang 16 (13–16 works, 17+ compiles and cannot
-execute), an STP built with SymFPU, Bitwuzla, and a Python environment with
-`wllvm`. `make klee` then `make test`: KLEE's `test/Floats` is 83 tests and
-passes at the pinned commit. Put your paths in `local.mk`.
+execute), Bitwuzla, and a Python environment with `wllvm`. Then:
+
+```sh
+make stp klee test      # STP from the pin, then KLEE, then KLEE's own suite
+```
+
+`make stp` builds the pinned STP with SymFPU, which is what supplies the
+floating-point theory and the `vc_fp*` C API KLEE's builder calls. Pointing
+`STP_DIR` at an STP you already have works only if it is new enough — an older
+one fails to compile the KLEE pin with `FP_ABSTRACTION was not declared`, which
+names the symbol and not the cause. `test/Floats` is 83 tests and passes at the
+pinned commit. Put your paths in `local.mk`; `LLVM_DIR` is required.
 
 ## The five steps, and what each costs
 

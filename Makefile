@@ -25,7 +25,12 @@ KLEE_BIN      ?= $(KLEE_BUILD)/bin/klee
 FP_BENCH_SRC  ?= $(CURDIR)/src/fp_bench
 CORPUS_SRC    ?= $(CURDIR)/src/corpus
 BENCH_SRC     ?= $(CURDIR)/src/bench
-STP_DIR       ?= /opt/stp/lib/cmake/STP
+# Built by `make stp` from the pinned src/stp. Pointing this at an STP you
+# already have is fine only if it is new enough: KLEE's builder calls the
+# vc_fp* C API and its FP_ABSTRACTION interface flags, and an older STP fails
+# to compile the pin with "FP_ABSTRACTION was not declared".
+STP_PREFIX    ?= $(CURDIR)/build/stp
+STP_DIR       ?= $(STP_PREFIX)/lib/cmake/STP
 BITWUZLA_BIN  ?= /opt/bitwuzla/bin/bitwuzla
 BITWUZLA_INC  ?= /opt/bitwuzla/include
 BITWUZLA_LIB  ?= /opt/bitwuzla/lib/libbitwuzla.so
@@ -50,12 +55,13 @@ EXPORTS = KLEE_SRC=$(KLEE_SRC) KLEE_BUILD=$(KLEE_BUILD) KLEE_BIN=$(KLEE_BIN) \
           FP_BENCH_SRC=$(FP_BENCH_SRC) FP_BENCH_WORK=$(FP_BENCH_WORK) \
           CAPTURE_OUT=$(CAPTURE_OUT) BITWUZLA_BIN=$(BITWUZLA_BIN)
 
-.PHONY: help submodules image shell klee test libs capture curate verify replay clean
+.PHONY: help submodules image shell stp klee test libs capture curate verify replay clean
 
 help:
 	@echo "make submodules   fetch the pinned sources (or clone with --recurse-submodules)"
 	@echo "make image        build the container (see docker/Dockerfile -- untested)"
-	@echo "make klee         build the KLEE fork natively"
+	@echo "make stp          build the pinned STP (with SymFPU) natively"
+	@echo "make klee         build the KLEE fork natively (needs make stp first)"
 	@echo "make test         KLEE's own suite; test/Floats is the floating-point part"
 	@echo "make libs         LIB=$(LIB): fetch, build to bitcode, generate drivers"
 	@echo "make capture      LIB=$(LIB): run it under KLEE, dump the queries"
@@ -72,6 +78,18 @@ image:
 	docker build -t fp-repro -f docker/Dockerfile .
 
 shell: ; docker run --rm -it -v $(CURDIR):/repro -v $(FP_BENCH_WORK):/work fp-repro bash
+
+# ENABLE_AUTO_DOWNLOAD is how STP's own CI builds it: STP fetches its SAT
+# solvers and SymFPU itself, and SymFPU is what makes the floating-point theory
+# and the vc_fp* API exist at all. CMAKE_INSTALL_LIBDIR keeps the config where
+# STP_DIR expects it, rather than lib64 on some distributions.
+stp:
+	cmake -S $(KLEE_SRC)/../stp -B $(CURDIR)/build/stp-build -G Ninja \
+	  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(STP_PREFIX) \
+	  -DCMAKE_INSTALL_LIBDIR=lib -DENABLE_AUTO_DOWNLOAD=ON \
+	  -DUSE_CADICAL=ON -DUSE_MINISAT=ON -DUSE_CRYPTOMINISAT=OFF \
+	  -DBUILD_SHARED_LIBS=ON -DENABLE_TESTING=OFF
+	cmake --build $(CURDIR)/build/stp-build --target install
 
 # The two flags are not optional: LLVM 16's headers need -include cstdint under
 # GCC 14+, and the FP backends have to be switched on explicitly.
