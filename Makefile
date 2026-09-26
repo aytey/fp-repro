@@ -12,6 +12,13 @@
 
 # Where things are. The defaults suit the container; a native build points them
 # at its own prefixes.
+# LLVM_DIR is not optional. Left unset, cmake finds whatever LLVM the system
+# has -- which on a current distro is 20 or 21, where this KLEE compiles and
+# cannot execute anything (see VERSIONS.md).
+LLVM_DIR      ?=
+# STPConfig.cmake calls find_dependency() for STP's own SAT solvers, so the
+# prefix holding those has to be findable or STP itself "is not found".
+CMAKE_PREFIX  ?=
 KLEE_SRC      ?= $(CURDIR)/src/klee
 KLEE_BUILD    ?= $(CURDIR)/build/klee
 KLEE_BIN      ?= $(KLEE_BUILD)/bin/klee
@@ -20,7 +27,12 @@ CORPUS_SRC    ?= $(CURDIR)/src/corpus
 BENCH_SRC     ?= $(CURDIR)/src/bench
 STP_DIR       ?= /opt/stp/lib/cmake/STP
 BITWUZLA_BIN  ?= /opt/bitwuzla/bin/bitwuzla
+BITWUZLA_INC  ?= /opt/bitwuzla/include
+BITWUZLA_LIB  ?= /opt/bitwuzla/lib/libbitwuzla.so
 LIT           ?= lit
+# KLEE turns TCMalloc on when it finds the library, and then needs gperftools'
+# headers. A machine with the library and not the headers has to say OFF.
+TCMALLOC      ?= ON
 
 # Where work lands. Tens of GB for the libraries; fastest on a RAM disk.
 FP_BENCH_WORK ?= $(CURDIR)/work
@@ -64,10 +76,15 @@ shell: ; docker run --rm -it -v $(CURDIR):/repro -v $(FP_BENCH_WORK):/work fp-re
 # The two flags are not optional: LLVM 16's headers need -include cstdint under
 # GCC 14+, and the FP backends have to be switched on explicitly.
 klee:
+	@[ -n "$(LLVM_DIR)" ] || { echo "set LLVM_DIR (LLVM 13-16); see VERSIONS.md" >&2; exit 1; }
 	cmake -S $(KLEE_SRC) -B $(KLEE_BUILD) -G Ninja \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="-include cstdint" \
+	  -DLLVM_DIR=$(LLVM_DIR) $(if $(CMAKE_PREFIX),-DCMAKE_PREFIX_PATH=$(CMAKE_PREFIX),) \
 	  -DENABLE_SOLVER_STP=ON -DSTP_DIR=$(STP_DIR) \
-	  -DENABLE_SOLVER_Z3=ON -DENABLE_SOLVER_BITWUZLA=ON \
+	  -DENABLE_SOLVER_Z3=ON \
+	  -DENABLE_SOLVER_BITWUZLA=ON \
+	    -DBitwuzla_INCLUDE_DIRS=$(BITWUZLA_INC) -DBitwuzla_LIBRARIES=$(BITWUZLA_LIB) \
+	  -DENABLE_TCMALLOC=$(TCMALLOC) \
 	  -DENABLE_SYSTEM_TESTS=ON -DLIT_TOOL=$(shell command -v $(LIT)) \
 	  -DLLVMCC=$(shell command -v clang) -DLLVMCXX=$(shell command -v clang++)
 	cmake --build $(KLEE_BUILD)
