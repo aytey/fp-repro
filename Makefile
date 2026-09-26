@@ -79,6 +79,11 @@ image:
 
 shell: ; docker run --rm -it -v $(CURDIR):/repro -v $(FP_BENCH_WORK):/work fp-repro bash
 
+# PYTHON_LIB_INSTALL_DIR is why STP's CI passes it: without it the install
+# writes its Python bindings to the system site-packages, fails without root,
+# and stops before writing STPConfig.cmake -- so the next step reports that STP
+# cannot be found, which is true and unhelpful.
+#
 # ENABLE_AUTO_DOWNLOAD is how STP's own CI builds it: STP fetches its SAT
 # solvers and SymFPU itself, and SymFPU is what makes the floating-point theory
 # and the vc_fp* API exist at all. CMAKE_INSTALL_LIBDIR keeps the config where
@@ -88,7 +93,9 @@ stp:
 	  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(STP_PREFIX) \
 	  -DCMAKE_INSTALL_LIBDIR=lib -DENABLE_AUTO_DOWNLOAD=ON \
 	  -DUSE_CADICAL=ON -DUSE_MINISAT=ON -DUSE_CRYPTOMINISAT=OFF \
-	  -DBUILD_SHARED_LIBS=ON -DENABLE_TESTING=OFF
+	  -DBUILD_SHARED_LIBS=ON -DENABLE_TESTING=OFF \
+	  -DPYTHON_EXECUTABLE=$(shell command -v python3) \
+	  -DPYTHON_LIB_INSTALL_DIR=$(STP_PREFIX)/pylib
 	cmake --build $(CURDIR)/build/stp-build --target install
 
 # The two flags are not optional: LLVM 16's headers need -include cstdint under

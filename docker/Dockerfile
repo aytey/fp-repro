@@ -29,6 +29,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG STP_COMMIT=9997879e9b06e5f919b92832be60dbf9a881d646
 RUN git clone https://github.com/stp/stp /tmp/stp \
     && git -C /tmp/stp checkout ${STP_COMMIT}
+# PYTHON_LIB_INSTALL_DIR keeps STP's bindings inside the prefix. As root the
+# install would otherwise write them into the image's system site-packages,
+# which works and is not what anyone wants; unprivileged it fails outright and
+# stops before STPConfig.cmake is written.
+#
 # ENABLE_AUTO_DOWNLOAD lets STP fetch its own SAT solvers and SymFPU, which is
 # what its CI does; SymFPU is what makes the floating-point theory and the
 # vc_fp* C API KLEE's builder calls exist at all.
@@ -40,6 +45,7 @@ RUN cmake -S /tmp/stp -B /tmp/stp/build -G Ninja \
       -DENABLE_AUTO_DOWNLOAD=ON \
       -DUSE_CADICAL=ON -DUSE_CRYPTOMINISAT=OFF -DUSE_MINISAT=ON \
       -DBUILD_SHARED_LIBS=ON -DENABLE_TESTING=OFF \
+      -DPYTHON_LIB_INSTALL_DIR=/opt/stp/pylib \
     && cmake --build /tmp/stp/build --target install
 
 # ------------------------------------------------------------------ Bitwuzla
