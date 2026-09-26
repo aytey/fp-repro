@@ -40,7 +40,7 @@ floating-point theory and the `vc_fp*` C API KLEE's builder calls. Pointing
 `STP_DIR` at an STP you already have works only if it is new enough — an older
 one fails to compile the KLEE pin with `FP_ABSTRACTION was not declared`, which
 names the symbol and not the cause. `test/Floats` is 83 tests and passes at the
-pinned commit. Put your paths in `local.mk`; `LLVM_DIR` is required.
+pinned commit. Put your paths in `local.mk`; `LLVM_PREFIX` is required, and everything else about LLVM is derived from it — the runtime has to be compiled by the clang that matches, or LLVM 16's `llvm-ar` rejects its own runtime archive.
 
 ## The five steps, and what each costs
 

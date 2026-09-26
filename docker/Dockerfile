@@ -29,10 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG STP_COMMIT=9997879e9b06e5f919b92832be60dbf9a881d646
 RUN git clone https://github.com/stp/stp /tmp/stp \
     && git -C /tmp/stp checkout ${STP_COMMIT}
-# PYTHON_LIB_INSTALL_DIR keeps STP's bindings inside the prefix. As root the
-# install would otherwise write them into the image's system site-packages,
-# which works and is not what anyone wants; unprivileged it fails outright and
-# stops before STPConfig.cmake is written.
+# The Python bindings are off: nothing here uses them, and as root their
+# install silently writes into the image's system site-packages.
 #
 # ENABLE_AUTO_DOWNLOAD lets STP fetch its own SAT solvers and SymFPU, which is
 # what its CI does; SymFPU is what makes the floating-point theory and the
@@ -45,7 +43,7 @@ RUN cmake -S /tmp/stp -B /tmp/stp/build -G Ninja \
       -DENABLE_AUTO_DOWNLOAD=ON \
       -DUSE_CADICAL=ON -DUSE_CRYPTOMINISAT=OFF -DUSE_MINISAT=ON \
       -DBUILD_SHARED_LIBS=ON -DENABLE_TESTING=OFF \
-      -DPYTHON_LIB_INSTALL_DIR=/opt/stp/pylib \
+      -DENABLE_PYTHON_INTERFACE=OFF \
     && cmake --build /tmp/stp/build --target install
 
 # ------------------------------------------------------------------ Bitwuzla
@@ -90,6 +88,10 @@ RUN cmake -S /src/klee -B /build/klee -G Ninja \
         -DBitwuzla_LIBRARIES=/opt/bitwuzla/lib/libbitwuzla.so \
       -DENABLE_SYSTEM_TESTS=ON -DENABLE_UNIT_TESTS=OFF \
       -DLIT_TOOL=/opt/pyenv/bin/lit \
+      # /usr/bin/clang is clang 16 in this base image, which is what makes it
+      # the right answer here and the wrong one on a host, where it is whatever
+      # the distribution ships: the runtime must be compiled by the clang that
+      # matches LLVM_DIR or llvm-ar rejects the runtime archive it just built.
       -DLLVMCC=/usr/bin/clang -DLLVMCXX=/usr/bin/clang++ \
     && cmake --build /build/klee
 

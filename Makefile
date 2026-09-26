@@ -12,10 +12,16 @@
 
 # Where things are. The defaults suit the container; a native build points them
 # at its own prefixes.
-# LLVM_DIR is not optional. Left unset, cmake finds whatever LLVM the system
-# has -- which on a current distro is 20 or 21, where this KLEE compiles and
-# cannot execute anything (see VERSIONS.md).
-LLVM_DIR      ?=
+# LLVM_PREFIX is the one variable you must set, and everything about LLVM is
+# derived from it. Left to the system, cmake finds whatever LLVM is installed --
+# on a current distro 20 or 21, where this KLEE compiles and cannot execute
+# anything -- and, worse, the runtime gets built by a clang that does not match,
+# whereupon LLVM 16's llvm-ar rejects its own runtime archive with "Unknown
+# attribute kind". One prefix, one toolchain.
+LLVM_PREFIX   ?=
+LLVM_DIR      ?= $(LLVM_PREFIX)/lib/cmake/llvm
+LLVMCC        ?= $(LLVM_PREFIX)/bin/clang
+LLVMCXX       ?= $(LLVM_PREFIX)/bin/clang++
 # STPConfig.cmake calls find_dependency() for STP's own SAT solvers, so the
 # prefix holding those has to be findable or STP itself "is not found".
 CMAKE_PREFIX  ?=
@@ -79,10 +85,13 @@ image:
 
 shell: ; docker run --rm -it -v $(CURDIR):/repro -v $(FP_BENCH_WORK):/work fp-repro bash
 
-# PYTHON_LIB_INSTALL_DIR is why STP's CI passes it: without it the install
-# writes its Python bindings to the system site-packages, fails without root,
-# and stops before writing STPConfig.cmake -- so the next step reports that STP
-# cannot be found, which is true and unhelpful.
+# The Python bindings are off because nothing here uses them and they are the
+# only part of the install that can fail: left on, the install writes them to
+# the system site-packages whatever the prefix says, which needs root, and it
+# stops before writing STPConfig.cmake -- so the next step reports that STP
+# cannot be found, which is true and points at nothing. Pointing
+# PYTHON_LIB_INSTALL_DIR elsewhere instead requires that directory to exist
+# before cmake runs, which is a second thing to get right for no gain.
 #
 # ENABLE_AUTO_DOWNLOAD is how STP's own CI builds it: STP fetches its SAT
 # solvers and SymFPU itself, and SymFPU is what makes the floating-point theory
@@ -94,14 +103,14 @@ stp:
 	  -DCMAKE_INSTALL_LIBDIR=lib -DENABLE_AUTO_DOWNLOAD=ON \
 	  -DUSE_CADICAL=ON -DUSE_MINISAT=ON -DUSE_CRYPTOMINISAT=OFF \
 	  -DBUILD_SHARED_LIBS=ON -DENABLE_TESTING=OFF \
-	  -DPYTHON_EXECUTABLE=$(shell command -v python3) \
-	  -DPYTHON_LIB_INSTALL_DIR=$(STP_PREFIX)/pylib
+	  -DENABLE_PYTHON_INTERFACE=OFF
 	cmake --build $(CURDIR)/build/stp-build --target install
 
 # The two flags are not optional: LLVM 16's headers need -include cstdint under
 # GCC 14+, and the FP backends have to be switched on explicitly.
 klee:
-	@[ -n "$(LLVM_DIR)" ] || { echo "set LLVM_DIR (LLVM 13-16); see VERSIONS.md" >&2; exit 1; }
+	@[ -n "$(LLVM_PREFIX)" ] || { echo "set LLVM_PREFIX to an LLVM 13-16 install; see VERSIONS.md" >&2; exit 1; }
+	@[ -x "$(LLVMCC)" ] || { echo "not executable: $(LLVMCC) (LLVM_PREFIX wrong?)" >&2; exit 1; }
 	cmake -S $(KLEE_SRC) -B $(KLEE_BUILD) -G Ninja \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_FLAGS="-include cstdint" \
 	  -DLLVM_DIR=$(LLVM_DIR) $(if $(CMAKE_PREFIX),-DCMAKE_PREFIX_PATH=$(CMAKE_PREFIX),) \
@@ -111,7 +120,7 @@ klee:
 	    -DBitwuzla_INCLUDE_DIRS=$(BITWUZLA_INC) -DBitwuzla_LIBRARIES=$(BITWUZLA_LIB) \
 	  -DENABLE_TCMALLOC=$(TCMALLOC) \
 	  -DENABLE_SYSTEM_TESTS=ON -DLIT_TOOL=$(shell command -v $(LIT)) \
-	  -DLLVMCC=$(shell command -v clang) -DLLVMCXX=$(shell command -v clang++)
+	  -DLLVMCC=$(LLVMCC) -DLLVMCXX=$(LLVMCXX)
 	cmake --build $(KLEE_BUILD)
 
 test:
