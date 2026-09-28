@@ -50,7 +50,14 @@ make capture LIB=f2clapack-f64     # run under KLEE, dump every query it asks
 make curate                        # inventory, de-duplicate, sample, check
 make verify  LIB=f2clapack-f64 DRV=dgecon_   # differential-check the printer
 make replay  CONFIG=configs/fp_abstraction_v6.yaml
+make report  CSV=out/fp_abs_v6.csv   # solved and PAR2 per width, per arm
 ```
+
+`make libs-all` does every driver set rather than one, which is the whole width
+axis and about a day; a set that fails is recorded and the sweep carries on.
+`make report` is the one to use on a result: the harness scores a campaign in
+total, and a total is the number this corpus was built to distrust -- an arm can
+be ahead overall and behind at binary16.
 
 `make libs` is the slow one and the one that goes wrong: each library is fetched
 and built with a bitcode-preserving compiler, some need patches, and the working

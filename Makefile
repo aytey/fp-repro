@@ -52,6 +52,12 @@ CORPUS_OUT    ?= $(CURDIR)/out/corpus
 
 # What to run on.
 LIB           ?= f2clapack-f64
+# Every driver set, which is also the width axis: one source tree appears once
+# per format. This is capture5.sh's list, in its order.
+LIBS_ALL      ?= f2clapack f2clapack-f64 f2clapack-f32 f2clapack-f16 \
+                 sundials sundials-f128 sundials-f16 \
+                 cmsisdsp cmsisdsp-f32 hdf5 hdf5-f32 \
+                 cuba fftwq fftw cxsparse osqp blis openlibm gsl gmp
 TAG           ?=          # dump-queries.sh's optional tag, e.g. q128 or f16
 JOBS          ?= 16
 BUDGET        ?= 120
@@ -61,7 +67,7 @@ EXPORTS = KLEE_SRC=$(KLEE_SRC) KLEE_BUILD=$(KLEE_BUILD) KLEE_BIN=$(KLEE_BIN) \
           FP_BENCH_SRC=$(FP_BENCH_SRC) FP_BENCH_WORK=$(FP_BENCH_WORK) \
           CAPTURE_OUT=$(CAPTURE_OUT) BITWUZLA_BIN=$(BITWUZLA_BIN)
 
-.PHONY: help submodules image shell stp klee test libs capture curate verify replay clean
+.PHONY: help submodules image shell stp klee test libs libs-all capture curate verify replay report clean
 
 help:
 	@echo "make submodules   fetch the pinned sources (or clone with --recurse-submodules)"
@@ -70,10 +76,12 @@ help:
 	@echo "make klee         build the KLEE fork natively (needs make stp first)"
 	@echo "make test         KLEE's own suite; test/Floats is the floating-point part"
 	@echo "make libs         LIB=$(LIB): fetch, build to bitcode, generate drivers"
+	@echo "make libs-all     every driver set: the whole width axis, about a day"
 	@echo "make capture      LIB=$(LIB): run it under KLEE, dump the queries"
 	@echo "make curate       inventory + curate a capture into a corpus"
 	@echo "make verify       differential-check the SMT-LIB printer on LIB"
 	@echo "make replay       run a campaign over a corpus with the harness"
+	@echo "make report       CSV=... score a campaign per width and per arm"
 	@echo
 	@echo "Paths and pins: README.md and VERSIONS.md. Override in local.mk."
 
@@ -132,6 +140,20 @@ libs:
 
 # One library, one arm: what fp_bench's own dump script does. The four-arm
 # capture that produced bench-v3 is corpus/tools/capture5.sh, driven the same way.
+# A library that fails is recorded and the sweep continues: this runs for the
+# better part of a day, and stopping it on the eleventh of twenty to report
+# that one tarball moved wastes the other nineteen.
+libs-all:
+	@rm -f $(FP_BENCH_WORK)/libs-all.failed
+	@for lib in $(LIBS_ALL); do \
+	  echo "=== $$lib ==="; \
+	  $(MAKE) --no-print-directory libs LIB=$$lib \
+	    || echo "$$lib" >> $(FP_BENCH_WORK)/libs-all.failed; \
+	done
+	@if [ -s $(FP_BENCH_WORK)/libs-all.failed ]; then \
+	  echo "failed: $$(tr '\n' ' ' < $(FP_BENCH_WORK)/libs-all.failed)"; \
+	else echo "all $(words $(LIBS_ALL)) driver sets built"; fi
+
 capture:
 	$(EXPORTS) FP_BENCH_OUT=$(CAPTURE_OUT)/$(LIB) BUDGET=$(BUDGET) \
 	  $(FP_BENCH_SRC)/common/dump-queries.sh $(LIB) $(TAG)
@@ -149,5 +171,11 @@ verify:
 
 replay:
 	cd $(BENCH_SRC) && python3 ./run_comparison.py $(CONFIG) --dir $(CORPUS_OUT)/queries
+
+# The harness scores a campaign in total; this splits it by the width of the
+# widest float in each query, which is what the corpus was built to vary.
+report:
+	@[ -n "$(CSV)" ] || { echo "set CSV=<campaign.csv> (and optionally REVAL=)" >&2; exit 1; }
+	python3 $(BENCH_SRC)/summarize_by_width.py $(CSV) $(CORPUS_OUT)/manifest.tsv $(REVAL)
 
 clean: ; rm -rf $(KLEE_BUILD) out

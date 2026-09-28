@@ -6,10 +6,10 @@ you ignore them.
 
 | | pin | why this one |
 | --- | --- | --- |
-| `src/klee` | `aytey/klee` @ `edb7fa6a` (branch `aytey_20260824_fp_port`) | KLEE 3.2 with klee-float's floating-point support forward-ported, the STP and Bitwuzla backends, and the solver-independent SMT-LIB printer |
-| `src/fp_bench` | `aytey/klee_fp_bench` @ `bbc6bd54` | the driver generator and the capture scripts |
-| `src/corpus` | `aytey/fp-benchmarks` @ `741274b1` | the captured queries, and the inventory/curation tools that made them |
-| `src/bench` | `aytey/stp-bench` @ `237285ab` | the replay harness, its 27 campaign configs, and the campaigns as run |
+| `src/klee` | `aytey/klee` @ `fa5ccccf` (branch `aytey_20260824_fp_port`) | KLEE 3.2 with klee-float's floating-point support forward-ported, the STP and Bitwuzla backends, and the solver-independent SMT-LIB printer |
+| `src/fp_bench` | `aytey/klee_fp_bench` @ `028a7eb0` | the driver generator and the capture scripts |
+| `src/corpus` | `aytey/fp-benchmarks` @ `c2de422c` | the captured queries, and the inventory/curation tools that made them |
+| `src/bench` | `aytey/stp-bench` @ `8ca0cb6a` | the replay harness, its 27 campaign configs, and the campaigns as run |
 | `src/stp` | `stp/stp` @ `9997879e` | master, which now carries the floating-point abstraction and the FP C API KLEE's builder calls |
 | LLVM / clang | 16 | the fork needs 13–16. **Not 17 or later**: for those, `lib/Module/CMakeLists.txt` selects `assert(0)` stubs, so it compiles and cannot execute. clang 15 is the lowest that does `_Float16` on x86 |
 | Bitwuzla | `bitwuzla/bitwuzla` @ `eb9ebd82` | the second backend, and the reference printer the differential harness checks against |
